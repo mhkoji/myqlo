@@ -68,18 +68,6 @@
 
 
 ;; C api prepared statement functions
-(cffi:defcfun ("mysql_stmt_result_metadata" mysql-stmt-result-metadata)
-    :pointer
-  (mysql-stmt :pointer))
-
-(cffi:defcfun ("mysql_stmt_init" mysql-stmt-init) :pointer
-  (mysql :pointer))
-
-(cffi:defcfun ("mysql_stmt_prepare" mysql-stmt-prepare) :int
-  (stmt :pointer)
-  (stmt-str :string)
-  (length :unsigned-long))
-
 (cffi:defcfun ("mysql_stmt_bind_param" mysql-stmt-bind-param) :int
   (stmt :pointer)
   (bind :pointer))
@@ -88,26 +76,38 @@
   (stmt :pointer)
   (bind :pointer))
 
-(cffi:defcfun ("mysql_stmt_next_result" mysql-stmt-next-result) :int
+(cffi:defcfun ("mysql_stmt_close" mysql-stmt-close) :boolean
+  (stmt :pointer))
+
+(cffi:defcfun ("mysql_stmt_errno" mysql-stmt-errno) :unsigned-int
+  (mysql :pointer))
+
+(cffi:defcfun ("mysql_stmt_error" mysql-stmt-error) :string
+  (mysql :pointer))
+
+(cffi:defcfun ("mysql_stmt_execute" mysql-stmt-execute) :int
+  (stmt :pointer))
+
+(cffi:defcfun ("mysql_stmt_result_metadata" mysql-stmt-result-metadata)
+    :pointer
+  (mysql-stmt :pointer))
+
+(cffi:defcfun ("mysql_stmt_fetch" mysql-stmt-fetch) :int
   (stmt :pointer))
 
 (cffi:defcfun ("mysql_stmt_free_result" mysql-stmt-free-result) :int
   (stmt :pointer))
 
-(cffi:defcfun ("mysql_stmt_execute" mysql-stmt-execute) :int
-  (stmt :pointer))
-
-(cffi:defcfun ("mysql_stmt_fetch" mysql-stmt-fetch) :int
-  (stmt :pointer))
-
-(cffi:defcfun ("mysql_stmt_close" mysql-stmt-close) :boolean
-  (stmt :pointer))
-
-(cffi:defcfun ("mysql_stmt_error" mysql-stmt-error) :string
+(cffi:defcfun ("mysql_stmt_init" mysql-stmt-init) :pointer
   (mysql :pointer))
 
-(cffi:defcfun ("mysql_stmt_errno" mysql-stmt-errno) :unsigned-int
-  (mysql :pointer))
+(cffi:defcfun ("mysql_stmt_next_result" mysql-stmt-next-result) :int
+  (stmt :pointer))
+
+(cffi:defcfun ("mysql_stmt_prepare" mysql-stmt-prepare) :int
+  (stmt :pointer)
+  (stmt-str :string)
+  (length :unsigned-long))
 
 
 (cffi:defcstruct mysql-field
