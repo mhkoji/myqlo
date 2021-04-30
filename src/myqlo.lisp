@@ -298,6 +298,8 @@
 (defun int-sql-type->keyword (int)
   (cffi:foreign-enum-keyword 'myqlo.cffi::enum-field-types int))
 
+;; Fill bind with zeros before calling this function.
+;; Otherwize, garbage data make MySQL APIs work incorrectly.
 ;; ref: https://dev.mysql.com/doc/c-api/8.0/en/mysql-bind-param.html
 (defun setup-bind-for-param (bind param)
   (with-accessors ((sql-type param-sql-type)
@@ -318,6 +320,8 @@
          (setf (cffi:mem-ref (bind-length bind) :ulong) len))))
     (setf (bind-buffer-type bind) (keyword-sql-type->int sql-type))))
 
+;; Fill bind with zeros before calling this function.
+;; Otherwize, garbage data make MySQL APIs work incorrectly.
 (defun setup-bind-for-result (bind sql-type)
   (ecase sql-type
     ((:null)) ;; Doing nothing seems to work when null.
@@ -361,7 +365,7 @@
   (let ((res (myqlo.cffi::mysql-stmt-result-metadata stmt)))
     (if (cffi:null-pointer-p res)
         ;; res is null when the query is INSERT
-        ;; TOOD: error check
+        ;; TODO: error check
         nil
         (unwind-protect (funcall res-fn res)
           (myqlo.cffi::mysql-free-result res)))))
