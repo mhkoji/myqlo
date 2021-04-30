@@ -18,6 +18,9 @@ CONN
 CL-USER> (myqlo:query conn "CREATE TABLE users (user_id bigint(20) NOT NULL AUTO_INCREMENT PRIMARY KEY, name varchar(64) NOT NULL, created_on datetime NOT NULL)")
 NIL
 
+CL-USER> (myqlo:query conn "INSERT INTO users (name, created_on) VALUES (\"A\", \"2021-01-01 10:00:00\")")
+NIL
+
 CL-USER> (myqlo:query conn "INSERT INTO users (name, created_on) VALUES (\"B\", \"2021-01-01 11:00:00\")")
 NIL
 
