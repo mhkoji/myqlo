@@ -359,11 +359,12 @@
 
 (defun call-with-stmt-result-metadata (stmt res-fn)
   (let ((res (myqlo.cffi::mysql-stmt-result-metadata stmt)))
-    (when (cffi:null-pointer-p res)
-      ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
-      (stmt-error stmt))
-    (unwind-protect (funcall res-fn res)
-      (myqlo.cffi::mysql-free-result res))))
+    (if (cffi:null-pointer-p res)
+        ;; res is null when the query is INSERT
+        ;; TOOD: error check
+        nil
+        (unwind-protect (funcall res-fn res)
+          (myqlo.cffi::mysql-free-result res)))))
 
 (defmacro with-stmt-result-metadata ((res stmt) &body body)
   `(call-with-stmt-result-metadata ,stmt
