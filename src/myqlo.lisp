@@ -288,7 +288,7 @@
 
 ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
 (defun bind-buffer-allocate-string (bind &optional (buffer-length 1024))
-  (setf (bind-buffer bind) (cffi:foreign-alloc :char :count buffer-length)
+  (setf (bind-buffer bind) (cffi:foreign-alloc :uint8 :count buffer-length)
         (bind-length bind) (cffi:foreign-alloc :ulong)
         (bind-buffer-length bind) buffer-length))
 
@@ -302,8 +302,8 @@
 ;; Otherwise, garbage data make MySQL APIs work incorrectly.
 ;; ref: https://dev.mysql.com/doc/c-api/8.0/en/mysql-bind-param.html
 (defun setup-bind-for-param (bind param)
-  (with-accessors ((sql-type param-sql-type)
-                   (value param-value)) param
+  (with-accessors ((value param-value)
+                   (sql-type param-sql-type)) param
     ;; It is not required to support for all the types
     ;; because this is a part of the API of this software.
     (ecase sql-type
@@ -313,10 +313,9 @@
       ((:string)
        (bind-buffer-allocate-string bind)
        (let* ((octets (string-to-octets value))
-              (len (length octets)))
-         (cffi:lisp-array-to-foreign octets
-                                     (bind-buffer bind)
-                                     (list :array :uint8 len))
+              (len (length octets))
+              (buf (bind-buffer bind)))
+         (cffi:lisp-array-to-foreign octets buf (list :array :uint8 len))
          (setf (cffi:mem-ref (bind-length bind) :ulong) len))))
     (setf (bind-buffer-type bind) (keyword-sql-type->int sql-type))))
 
