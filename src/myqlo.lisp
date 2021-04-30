@@ -364,8 +364,8 @@
 (defun call-with-stmt-result-metadata (stmt res-fn)
   (let ((res (myqlo.cffi::mysql-stmt-result-metadata stmt)))
     (if (cffi:null-pointer-p res)
-        ;; res is null when the query is INSERT
-        ;; TODO: error check
+        ;; res is null when the query is INSERT for example.
+        ;; Error check is not needed, maybe.
         nil
         (unwind-protect (funcall res-fn res)
           (myqlo.cffi::mysql-free-result res)))))
