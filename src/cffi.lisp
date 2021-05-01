@@ -95,6 +95,12 @@
 (cffi:defcfun ("mysql_stmt_fetch" mysql-stmt-fetch) :int
   (stmt :pointer))
 
+(cffi:defcfun ("mysql_stmt_fetch_column" mysql-stmt-fetch-column) :int
+  (stmt :pointer)
+  (bind :pointer)
+  (column :unsigned-int)
+  (offset :unsigned-long))
+
 (cffi:defcfun ("mysql_stmt_free_result" mysql-stmt-free-result) :int
   (stmt :pointer))
 
@@ -132,6 +138,29 @@
   (charsetnr :unsigned-int)
   (type :int)
   (extension :pointer))
+
+;; https://dev.mysql.com/doc/dev/mysql-server/latest/field__types_8h.html
+(cffi:defcenum enum-field-types
+  :decimal
+  :tiny
+  :short
+  :long
+  :float
+  :double
+  :null
+  :timestamp
+  :longlong
+  :int24
+  :date
+  :time
+  :datetime
+  :year
+  :newdate
+  :varchar
+  :bit
+  (:blob 252)
+  (:var-string 253)
+  (:string 254))
 
 ;; https://dev.mysql.com/doc/dev/mysql-server/latest/structMYSQL__BIND.html
 (cffi:defcstruct mysql-bind
@@ -175,26 +204,3 @@
   (meg :boolean)
   (time-type enum-mysql-timestamp-type)
   (time-zone-dispacement :int))
-
-;; https://dev.mysql.com/doc/dev/mysql-server/latest/field__types_8h.html
-(cffi:defcenum enum-field-types
-  :decimal
-  :tiny
-  :short
-  :long
-  :float
-  :double
-  :null
-  :timestamp
-  :longlong
-  :int24
-  :date
-  :time
-  :datetime
-  :year
-  :newdate
-  :varchar
-  :bit
-  (:blob 252)
-  (:var-string 253)
-  (:string 254))
