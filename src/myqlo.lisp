@@ -394,42 +394,45 @@
   `(call-with-stmt-result-metadata ,stmt
                                    (lambda (,res) (progn ,@body))))
 
+(defmacro with-binds ((var &key (count 1)) &body body)
+  (let ((g (gensym)))
+    `(let ((,g ,count))
+       (let ((,var (cffi:foreign-alloc *mysql-bind-struct* :count ,g)))
+         (unwind-protect
+              (progn
+                (myqlo.cffi::memset
+                 ,var 0 (* (cffi:foreign-type-size *mysql-bind-struct*)
+                           ,g))
+                ,@body)
+           (dotimes (i ,g)
+             (bind-release (cffi:mem-aptr binds *mysql-bind-struct* i)))
+           (cffi:foreign-free binds))))))
+
 (defun fetch-execute-result (stmt)
   (with-stmt-result-metadata (res stmt)
     ;; Fetch num fields to know the required count of binds.
-    (let* ((num-fields (myqlo.cffi::mysql-num-fields res))
-           (binds (cffi:foreign-alloc *mysql-bind-struct* :count num-fields))
-           (binds-for-free nil))
-      (unwind-protect
-           (progn
-             (myqlo.cffi::memset
-              binds 0 (* (cffi:foreign-type-size *mysql-bind-struct*)
-                         num-fields))
-             ;; Bind result
-             ;; Fetch fields to set field types to binds
-             (let ((fields (myqlo.cffi::mysql-fetch-fields res)))
-               (dotimes (i num-fields)
-                 (let ((bind (cffi:mem-aptr binds *mysql-bind-struct* i))
-                       (field (cffi:mem-aptr fields *mysql-field-struct* i)))
-                   (let ((field-type
-                          (int-sql-type->keyword (field-type field))))
-                     (setup-bind-for-result bind field-type))
-                   (push bind binds-for-free))))
-             (maybe-stmt-error
-              stmt (myqlo.cffi::mysql-stmt-bind-result stmt binds))
-
-             ;; Fetch rows
-             (let ((parsed-rows nil))
-               (loop for ret = (myqlo.cffi::mysql-stmt-fetch stmt)
-                     if (= ret 0)
-                       do (push (parse-row binds num-fields) parsed-rows)
-                     else if (= ret 1)
-                       do (stmt-error stmt)
-                     else
-                       do (return))
-               (nreverse parsed-rows)))
-        (mapc #'bind-release binds-for-free)
-        (cffi:foreign-free binds)))))
+    (let ((num-fields (myqlo.cffi::mysql-num-fields res)))
+      (with-binds (binds :count num-fields)
+        ;; Bind result
+        ;; Fetch fields to set field types to binds
+        (let ((fields (myqlo.cffi::mysql-fetch-fields res)))
+          (dotimes (i num-fields)
+            (let ((bind (cffi:mem-aptr binds *mysql-bind-struct* i))
+                  (field (cffi:mem-aptr fields *mysql-field-struct* i)))
+              (let ((field-type (int-sql-type->keyword (field-type field))))
+                (setup-bind-for-result bind field-type)))))
+        (maybe-stmt-error
+         stmt (myqlo.cffi::mysql-stmt-bind-result stmt binds))
+        ;; Fetch rows
+        (let ((parsed-rows nil))
+          (loop for ret = (myqlo.cffi::mysql-stmt-fetch stmt)
+                if (= ret 0)
+                  do (push (parse-row binds num-fields) parsed-rows)
+                else if (= ret 1)
+                  do (stmt-error stmt)
+                else
+                  do (return))
+          (nreverse parsed-rows))))))
 
 (defun call-with-prepared-statement (conn query stmt-fn)
   (let ((mysql-stmt (myqlo.cffi::mysql-stmt-init
@@ -452,33 +455,18 @@
 
 (defun execute (conn query params)
   (with-prepared-statement (stmt conn query)
-    (let* ((num-params (length params))
-           (binds (cffi:foreign-alloc *mysql-bind-struct* :count num-params))
-           (binds-for-free nil))
-      (unwind-protect
-           (progn
-             ;; Bind
-             (myqlo.cffi::memset
-              binds 0 (* (cffi:foreign-type-size *mysql-bind-struct*)
-                         num-params))
-             (loop for i from 0
-                   for param in params
-                   for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
-                   do (progn
-                        (setup-bind-for-param bind param)
-                        (push bind binds-for-free)))
-             (maybe-stmt-error
-              stmt (myqlo.cffi::mysql-stmt-bind-param stmt binds))
-
-             ;; Execute
-             (maybe-stmt-error
-              stmt (myqlo.cffi::mysql-stmt-execute stmt))
-
-             ;; Fetch
-             (fetch-execute-result stmt))
-        ;; binds are released after execution because execute seems to use the values in the bindings:
-        ;; https://dev.mysql.com/doc/c-api/8.0/en/c-api-prepared-statement-data-structures.html
-        ;; > When you call mysql_stmt_execute(), MySQL use the value stored in the variable
-        ;; > in place of the corresponding parameter marker in the statement
-        (mapc #'bind-release binds-for-free)
-        (cffi:foreign-free binds)))))
+    (with-binds (binds :count (length params))
+      ;; Bind
+      (loop for i from 0
+            for param in params
+            for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
+            do (setup-bind-for-param bind param))
+      (maybe-stmt-error stmt (myqlo.cffi::mysql-stmt-bind-param stmt binds))
+      ;; Execute
+      ;; binds are released after execution because execute seems to use the values in the bindings:
+      ;; https://dev.mysql.com/doc/c-api/8.0/en/c-api-prepared-statement-data-structures.html
+      ;; > When you call mysql_stmt_execute(), MySQL use the value stored in the variable
+      ;; > in place of the corresponding parameter marker in the statement
+      (maybe-stmt-error stmt (myqlo.cffi::mysql-stmt-execute stmt))
+      ;; Fetch
+      (fetch-execute-result stmt))))
