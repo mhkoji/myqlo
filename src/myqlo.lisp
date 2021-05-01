@@ -144,7 +144,7 @@
                (time->sql-string time)))
 
 
-(defun row-converter-for (sql-type)
+(defun column-converter-for (sql-type)
   (ecase sql-type
     ((:null)
      (lambda (octets)
@@ -164,8 +164,8 @@
     ((:blob)
      #'identity)))
 
-(defun parse-row-octets (sql-type octets)
-  (funcall (row-converter-for sql-type) octets))
+(defun parse-column-octets (sql-type octets)
+  (funcall (column-converter-for sql-type) octets))
 
 
 (define-condition mysql-error (error)
@@ -241,45 +241,41 @@
 (defmacro with-store-result ((res mysql) &body body)
   `(call-with-store-result ,mysql (lambda (,res) (progn ,@body))))
 
-(defun fetch-query-result (mysql)
+(defun query-fetch-all (mysql)
   ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-store-result.html
   ;; > it does not do any harm or cause any notable performance degradation if you call mysql_store_result() in all cases.
   (with-store-result (res mysql)
-    (let ((num-fields (myqlo.cffi::mysql-num-fields res))
-          (fields (myqlo.cffi::mysql-fetch-fields res)))
-      (let ((field-types
-             (loop repeat num-fields
+    (let* ((fields (myqlo.cffi::mysql-fetch-fields res))
+           (field-types
+            (loop repeat (myqlo.cffi::mysql-num-fields res)
+                  for i from 0
+                  for field = (cffi:mem-aptr fields *mysql-field-struct* i)
+                  collect (int-sql-type->keyword (field-type field)))))
+      (labels ((parse-row (row lens)
+                 (loop
                    for i from 0
-                   for field = (cffi:mem-aptr fields *mysql-field-struct* i)
-                   collect (int-sql-type->keyword (field-type field))))
-            (parsed-rows nil))
-        (loop for row = (myqlo.cffi::mysql-fetch-row res)
-              if (not (cffi:null-pointer-p row))
-                do (let ((lens (myqlo.cffi::mysql-fetch-lengths res)))
-                     (when (cffi:null-pointer-p lens)
-                       (mysql-error mysql))
-                     (let ((parsed-row
-                            (loop
-                              for type in field-types
-                              for i from 0
-                              collect
-                              (let* ((nth-ptr
-                                      (cffi:mem-aref row :pointer i))
-                                     (len
-                                      (cffi:mem-aref lens :unsigned-long i))
-                                     (octets (ref-sql-octets nth-ptr len)))
-                                (parse-row-octets type octets)))))
-                       (push parsed-row parsed-rows)))
-              else if (/= (myqlo.cffi:mysql-errno mysql) 0)
-                do (mysql-error mysql)
-              else
-                do (return))
-        (nreverse parsed-rows)))))
+                   for nth-ptr = (cffi:mem-aref row :pointer i)
+                   for len = (cffi:mem-aref lens :unsigned-long i)
+                   for type in field-types
+                   collect (let ((octets (ref-sql-octets nth-ptr len)))
+                             (parse-column-octets type octets)))))
+        (let ((parsed-rows nil))
+          (loop for row = (myqlo.cffi::mysql-fetch-row res)
+                if (not (cffi:null-pointer-p row))
+                  do (let ((lens (myqlo.cffi::mysql-fetch-lengths res)))
+                       (when (cffi:null-pointer-p lens)
+                         (mysql-error mysql))
+                       (push (parse-row row lens) parsed-rows))
+                else if (/= (myqlo.cffi:mysql-errno mysql) 0)
+                  do (mysql-error mysql)
+                else
+                  do (return))
+          (nreverse parsed-rows))))))
 
 (defun query (conn string)
   (let ((mysql (connection-mysql conn)))
     (maybe-mysql-error mysql (myqlo.cffi:mysql-query mysql string))
-    (fetch-query-result mysql)))
+    (query-fetch-all mysql)))
 
 
 (defun keyword-sql-type->int (sql-type)
