@@ -207,7 +207,7 @@
 
 (defun rollback (conn)
   (let ((mysql (connection-mysql conn)))
-    (maybe-mysql-error mysql (myqlo.cffi::mysql-commit mysql))))
+    (maybe-mysql-error mysql (myqlo.cffi::mysql-rollback mysql))))
 
 
 (defun mysql-error (mysql)
