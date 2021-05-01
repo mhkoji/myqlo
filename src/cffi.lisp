@@ -63,6 +63,9 @@
   (unix-socket :string)
   (client-flag :unsigned-long))
 
+(cffi:defcfun ("mysql_rollback" mysql-rollback) :int
+  (mysql :pointer))
+
 (cffi:defcfun ("mysql_store_result" mysql-store-result) :pointer
   (mysql :pointer))
 

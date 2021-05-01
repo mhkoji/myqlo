@@ -5,6 +5,7 @@
            :query
            :execute
            :commit
+           :rollback
            :make-param))
 (in-package :myqlo)
 
@@ -200,6 +201,14 @@
 (defun disconnect (conn)
   (myqlo.cffi:mysql-close (connection-mysql conn)))
 
+(defun commit (conn)
+  (let ((mysql (connection-mysql conn)))
+    (maybe-mysql-error mysql (myqlo.cffi::mysql-commit mysql))))
+
+(defun rollback (conn)
+  (let ((mysql (connection-mysql conn)))
+    (maybe-mysql-error mysql (myqlo.cffi::mysql-commit mysql))))
+
 
 (defun mysql-error (mysql)
   (error 'mysql-error
@@ -220,11 +229,6 @@
   (if (= ret 0)
       ret
       (stmt-error stmt)))
-
-(defun commit (conn)
-  (let ((mysql (connection-mysql conn)))
-    (maybe-mysql-error mysql (myqlo.cffi::mysql-commit mysql))))
-
 
 (defun call-with-store-result (mysql res-fn)
   (let ((res (myqlo.cffi::mysql-store-result mysql)))
@@ -263,8 +267,7 @@
                                       (cffi:mem-aref row :pointer i))
                                      (len
                                       (cffi:mem-aref lens :unsigned-long i))
-                                     (octets
-                                      (ref-sql-octets nth-ptr len)))
+                                     (octets (ref-sql-octets nth-ptr len)))
                                 (parse-row-octets type octets)))))
                        (push parsed-row parsed-rows)))
               else if (/= (myqlo.cffi:mysql-errno mysql) 0)
@@ -379,7 +382,6 @@
              (setf (bind-is-null bind) (cffi:foreign-alloc :bool))))
       (maybe-stmt-error
        stmt (myqlo.cffi::mysql-stmt-bind-result stmt binds))
-
       ;; Fetch rows
       (labels ((parse-bind (bind index)
                  (let ((sql-type (int-sql-type->keyword
@@ -427,11 +429,12 @@
               else if (= ret 100)
                 do (return)
               else ;; MYSQL_DATA_TRUNCATED was returned, maybe.
-                do (push (loop repeat num-fields for i from 0
-                               collect
-                               (let ((bind (cffi:mem-aptr
-                                            binds *mysql-bind-struct* i)))
-                                 (parse-bind bind i)))
+                do (push (loop
+                           repeat num-fields
+                           for i from 0
+                           for bind = (cffi:mem-aptr
+                                       binds *mysql-bind-struct* i)
+                           collect (parse-bind bind i))
                          parsed-rows))
           (nreverse parsed-rows))))))
 
