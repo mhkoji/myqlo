@@ -67,7 +67,7 @@
   (mysql :pointer))
 
 
-;; C api prepared statement functions
+;; C api prepared statement functions in alphabetical order.
 (cffi:defcfun ("mysql_stmt_bind_param" mysql-stmt-bind-param) :int
   (stmt :pointer)
   (bind :pointer))

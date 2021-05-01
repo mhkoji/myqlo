@@ -78,6 +78,50 @@
     ,time *mysql-time-struct* 'myqlo.cffi::second))
 
 
+(defun bind-buffer-allocate-byte (bind cffi-type)
+  (setf (bind-buffer bind) (cffi:foreign-alloc cffi-type)
+        (bind-length bind) (cffi:null-pointer)))
+
+(defmacro bind-buffer-as-byte (bind cffi-type)
+  `(cffi:mem-ref (bind-buffer ,bind) ,cffi-type))
+
+;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
+(defun bind-buffer-allocate-date (bind)
+  (setf (bind-buffer bind) (cffi:foreign-alloc *mysql-time-struct*)
+        (bind-length bind) (cffi:null-pointer)))
+
+(defun bind-buffer-as-date-string (bind)
+  (date->sql-string (bind-buffer bind)))
+
+(defun bind-buffer-as-time-string (bind)
+  (time->sql-string (bind-buffer bind)))
+
+(defun bind-buffer-as-datetime-string (bind)
+  (datetime->sql-string (bind-buffer bind)))
+
+;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
+(defun bind-buffer-allocate-octets (bind &optional (buffer-length 1024))
+  (setf (bind-buffer bind) (cffi:foreign-alloc :char :count buffer-length)
+        (bind-length bind) (cffi:foreign-alloc :ulong)
+        (bind-buffer-length bind) buffer-length))
+
+(defmacro bind-length-ref (bind)
+  `(cffi:mem-ref (bind-length ,bind) :ulong))
+
+(defun bind-buffer-as-octets (bind)
+  (let ((len (bind-length-ref bind))
+        (buf (bind-buffer bind)))
+    (cffi:foreign-array-to-lisp buf (list :array :uint8 len)
+                                :element-type '(unsigned-byte 8))))
+
+(defun (setf bind-buffer-as-octets) (octets bind)
+  (let ((len (length octets)))
+    (cffi:lisp-array-to-foreign octets
+                                (bind-buffer bind)
+                                (list :array :uint8 len))
+    (setf (bind-length-ref bind) len)))
+
+
 (defun string-to-octets (string)
   (babel:string-to-octets string :encoding :utf-8))
 
@@ -138,28 +182,24 @@
           (t
            (ecase sql-type
              ((:tiny)
-              (cffi:mem-ref (bind-buffer bind) :int8))
+              (bind-buffer-as-byte bind :int8))
              ((:short)
-              (cffi:mem-ref (bind-buffer bind) :int16))
+              (bind-buffer-as-byte bind :int16))
              ((:long)
-              (cffi:mem-ref (bind-buffer bind) :int32))
+              (bind-buffer-as-byte bind :int32))
              ((:longlong)
-              (cffi:mem-ref (bind-buffer bind) :int64))
+              (bind-buffer-as-byte bind :int64))
              ((:date)
-              (date->sql-string (bind-buffer bind)))
+              (bind-buffer-as-date-string bind))
              ((:time)
-              (time->sql-string (bind-buffer bind)))
+              (bind-buffer-as-time-string bind))
              ((:datetime)
-              (datetime->sql-string (bind-buffer bind)))
+              (bind-buffer-as-datetime-string bind))
              ((:string :var-string :blob)
-              (let ((len (cffi:mem-ref (bind-length bind) :long))
-                    (buf (bind-buffer bind)))
-                (let ((octets (cffi:foreign-array-to-lisp
-                               buf (list :array :uint8 len)
-                               :element-type '(unsigned-byte 8))))
-                  (if (eql sql-type :blob)
-                      octets
-                      (octets-to-string octets))))))))))
+              (let ((octets (bind-buffer-as-octets bind)))
+                (if (eql sql-type :blob)
+                    octets
+                    (octets-to-string octets)))))))))
 
 
 (define-condition mysql-error (error)
@@ -277,21 +317,6 @@
     (fetch-query-result mysql)))
 
 
-(defun bind-buffer-allocate-byte (bind cffi-type)
-  (setf (bind-buffer bind) (cffi:foreign-alloc cffi-type)
-        (bind-length bind) (cffi:null-pointer)))
-
-;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
-(defun bind-buffer-allocate-date (bind)
-  (setf (bind-buffer bind) (cffi:foreign-alloc *mysql-time-struct*)
-        (bind-length bind) (cffi:null-pointer)))
-
-;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
-(defun bind-buffer-allocate-string (bind &optional (buffer-length 1024))
-  (setf (bind-buffer bind) (cffi:foreign-alloc :uint8 :count buffer-length)
-        (bind-length bind) (cffi:foreign-alloc :ulong)
-        (bind-buffer-length bind) buffer-length))
-
 (defun keyword-sql-type->int (sql-type)
   (cffi:foreign-enum-value 'myqlo.cffi::enum-field-types sql-type))
 
@@ -308,15 +333,13 @@
     ;; because this is a part of the API of this software.
     (ecase sql-type
       ((:long)
+       (assert (integerp value))
        (bind-buffer-allocate-byte bind :int32)
-       (setf (cffi:mem-ref (bind-buffer bind) :int32) value))
+       (setf (bind-buffer-as-byte bind :int32) value))
       ((:string)
-       (bind-buffer-allocate-string bind)
-       (let* ((octets (string-to-octets value))
-              (len (length octets))
-              (buf (bind-buffer bind)))
-         (cffi:lisp-array-to-foreign octets buf (list :array :uint8 len))
-         (setf (cffi:mem-ref (bind-length bind) :ulong) len))))
+       (assert (stringp value))
+       (bind-buffer-allocate-octets bind)
+       (setf (bind-buffer-as-octets bind) (string-to-octets value))))
     (setf (bind-buffer-type bind) (keyword-sql-type->int sql-type))))
 
 ;; Fill bind with zeros before calling this function.
@@ -335,7 +358,7 @@
     ((:date :time :datetime)
      (bind-buffer-allocate-date bind))
     ((:blob :string :var-string)
-     (bind-buffer-allocate-string bind)))
+     (bind-buffer-allocate-octets bind)))
   ;; MEMO:
   ;; is-null should be allocation only in bind-for-result.
   ;; If is-null is allocated in bind-for-param, nothing returns.
