@@ -374,8 +374,6 @@
     (ignore-errors
       (free-if-not-null (bind-length bind)))
     (ignore-errors
-      (free-if-not-null (bind-error bind)))
-    (ignore-errors
       (free-if-not-null (bind-is-null bind)))))
 
 (defun parse-row (binds num-fields)
