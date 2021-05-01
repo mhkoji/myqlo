@@ -284,8 +284,6 @@
 (defun int-sql-type->keyword (int)
   (cffi:foreign-enum-keyword 'myqlo.cffi::enum-field-types int))
 
-;; Fill bind with zeros before calling this function.
-;; Otherwise, garbage data make MySQL APIs work incorrectly.
 ;; ref: https://dev.mysql.com/doc/c-api/8.0/en/mysql-bind-param.html
 (defun setup-bind-for-param (bind param)
   (with-accessors ((value param-value)
@@ -341,6 +339,8 @@
        (let ((,var (cffi:foreign-alloc *mysql-bind-struct* :count ,g)))
          (unwind-protect
               (progn
+                ;; Binds are filled with zeros
+                ;; because garbage data make MySQL APIs work incorrectly.
                 (myqlo.cffi::memset
                  ,var 0 (* (cffi:foreign-type-size *mysql-bind-struct*)
                            ,g))
@@ -435,8 +435,7 @@
           (nreverse parsed-rows))))))
 
 (defun call-with-prepared-statement (conn query stmt-fn)
-  (let ((mysql-stmt (myqlo.cffi::mysql-stmt-init
-                     (connection-mysql conn))))
+  (let ((mysql-stmt (myqlo.cffi::mysql-stmt-init (connection-mysql conn))))
     (when (cffi:null-pointer-p mysql-stmt)
       (error "Failed to initialize statement"))
     (unwind-protect
