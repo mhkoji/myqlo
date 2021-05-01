@@ -372,7 +372,7 @@
                ((:date :time :datetime)
                 ;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
                 (setf (bind-buffer bind) (alloc-sql-time)))
-               ((:string :var-string)
+               ((:string :var-string :blob)
                 (setf (bind-buffer-length bind) 0
                       (bind-length bind) (cffi:foreign-alloc :ulong))))
              (setf (bind-buffer-type bind) (keyword-sql-type->int sql-type))
