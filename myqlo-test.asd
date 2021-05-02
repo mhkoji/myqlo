@@ -4,7 +4,7 @@
   :components
   ((:file "test")
    (:file "query-and-execute")
-   (:file "decimal"))
+   (:file "types"))
 
   :perform (asdf:test-op (o s)
              (funcall (intern (symbol-name :run!) :fiveam)
