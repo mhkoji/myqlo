@@ -180,6 +180,27 @@
                      (mysql-error-errno condition)
                      (mysql-error-error condition)))))
 
+(defun mysql-error (mysql)
+  (error 'mysql-error
+         :error (myqlo.cffi:mysql-error mysql)
+         :errno (myqlo.cffi:mysql-errno mysql)))
+
+(defun stmt-error (stmt)
+  (error 'mysql-error
+         :error (myqlo.cffi::mysql-stmt-error stmt)
+         :errno (myqlo.cffi::mysql-stmt-errno stmt)))
+
+(defun maybe-mysql-error (mysql ret)
+  (if (= ret 0)
+      ret
+      (mysql-error mysql)))
+
+(defun maybe-stmt-error (stmt ret)
+  (if (= ret 0)
+      ret
+      (stmt-error stmt)))
+
+
 (defclass connection ()
   ((mysql
     :initarg :mysql
@@ -217,26 +238,6 @@
   (let ((mysql (connection-mysql conn)))
     (maybe-mysql-error mysql (myqlo.cffi::mysql-ping mysql))))
 
-
-(defun mysql-error (mysql)
-  (error 'mysql-error
-         :error (myqlo.cffi:mysql-error mysql)
-         :errno (myqlo.cffi:mysql-errno mysql)))
-
-(defun stmt-error (stmt)
-  (error 'mysql-error
-         :error (myqlo.cffi::mysql-stmt-error stmt)
-         :errno (myqlo.cffi::mysql-stmt-errno stmt)))
-
-(defun maybe-mysql-error (mysql ret)
-  (if (= ret 0)
-      ret
-      (mysql-error mysql)))
-
-(defun maybe-stmt-error (stmt ret)
-  (if (= ret 0)
-      ret
-      (stmt-error stmt)))
 
 (defun call-with-store-result (mysql res-fn)
   (let ((res (myqlo.cffi::mysql-store-result mysql)))
