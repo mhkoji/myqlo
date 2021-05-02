@@ -121,26 +121,21 @@
 
 ;; https://dev.mysql.com/doc/dev/mysql-server/latest/field__types_8h.html
 (cffi:defcenum enum-field-types
-  :decimal
-  :tiny
-  :short
-  :long
-  :float
-  :double
-  :null
-  :timestamp
-  :longlong
-  :int24
-  :date
-  :time
-  :datetime
-  :year
-  :newdate
-  :varchar
-  :bit
+  :decimal :tiny :short :long :float :double :null :timestamp
+  :longlong :int24 :date :time :datetime :year :newdate :varchar :bit
+  (:invalid 243)
+  (:bool 246)
+  (:json 245)
+  (:newdecimal 246)
+  (:enum 247)
+  (:set 248)
+  (:tiny-blob 249)
+  (:medium-blob 250)
+  (:long-blob 251)
   (:blob 252)
   (:var-string 253)
-  (:string 254))
+  (:string 254)
+  (:geometry 255))
 
 (cffi:defcstruct mysql-field
   (name :string)
