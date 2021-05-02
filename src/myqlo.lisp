@@ -250,7 +250,7 @@
             (loop repeat (myqlo.cffi::mysql-num-fields res)
                   for i from 0
                   for field = (cffi:mem-aptr fields *mysql-field-struct* i)
-                  collect (int-sql-type->keyword (field-type field)))))
+                  collect (field-type field))))
       (labels ((parse-row (row lens)
                  (loop
                    for i from 0
@@ -470,5 +470,5 @@
                        for i from 0
                        for field = (cffi:mem-aptr
                                     fields *mysql-field-struct* i)
-                       collect (int-sql-type->keyword (field-type field)))))
+                       collect (field-type field))))
             (statement-fetch-all stmt field-types)))))))

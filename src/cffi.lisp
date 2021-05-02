@@ -119,29 +119,6 @@
   (length :unsigned-long))
 
 
-(cffi:defcstruct mysql-field
-  (name :string)
-  (org-name :string)
-  (table :string)
-  (org-table :string)
-  (db :string)
-  (catalog :string)
-  (def :string)
-  (length :unsigned-long)
-  (max-length :unsigned-long)
-  (name-length :unsigned-int)
-  (org-name-length :unsigned-int)
-  (table-length :unsigned-int)
-  (org-table-length :unsigned-int)
-  (db-length :unsigned-int)
-  (catalog-length :unsigned-int)
-  (def-length :unsigned-int)
-  (flags :unsigned-int)
-  (decimals :unsigned-int)
-  (charsetnr :unsigned-int)
-  (type :int)
-  (extension :pointer))
-
 ;; https://dev.mysql.com/doc/dev/mysql-server/latest/field__types_8h.html
 (cffi:defcenum enum-field-types
   :decimal
@@ -164,6 +141,29 @@
   (:blob 252)
   (:var-string 253)
   (:string 254))
+
+(cffi:defcstruct mysql-field
+  (name :string)
+  (org-name :string)
+  (table :string)
+  (org-table :string)
+  (db :string)
+  (catalog :string)
+  (def :string)
+  (length :unsigned-long)
+  (max-length :unsigned-long)
+  (name-length :unsigned-int)
+  (org-name-length :unsigned-int)
+  (table-length :unsigned-int)
+  (org-table-length :unsigned-int)
+  (db-length :unsigned-int)
+  (catalog-length :unsigned-int)
+  (def-length :unsigned-int)
+  (flags :unsigned-int)
+  (decimals :unsigned-int)
+  (charsetnr :unsigned-int)
+  (type enum-field-types)
+  (extension :pointer))
 
 ;; https://dev.mysql.com/doc/dev/mysql-server/latest/structMYSQL__BIND.html
 (cffi:defcstruct mysql-bind
