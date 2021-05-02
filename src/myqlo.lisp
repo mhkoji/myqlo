@@ -414,12 +414,19 @@
                        (datetime->sql-string (bind-buffer bind))))))))
 
          (fetch-octets-using-real-length (bind index)
-           (let ((len (bind-length-ref bind)))
-             (setf (bind-buffer bind) (cffi:foreign-alloc :char :count len)
-                   (bind-buffer-length bind) len)
-             (maybe-stmt-error
-              stmt (myqlo.cffi::mysql-stmt-fetch-column stmt bind index 0))
-             (ref-sql-octets (bind-buffer bind) len))))
+           (let* ((len (bind-length-ref bind))
+                  (buf (cffi:foreign-alloc :char :count len)))
+             (unwind-protect
+                  (progn
+                    (setf (bind-buffer bind) buf
+                          (bind-buffer-length bind) len)
+                    (maybe-stmt-error
+                     stmt (myqlo.cffi::mysql-stmt-fetch-column
+                           stmt bind index 0))
+                    (ref-sql-octets (bind-buffer bind) len))
+               (cffi:foreign-free buf)
+               ;; Prevent from double free by bind-release.
+               (setf (bind-buffer bind) (cffi:null-pointer))))))
 
       (with-binds (binds :count num-fields)
         ;; Bind result
