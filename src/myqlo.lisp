@@ -1,12 +1,15 @@
 (defpackage :myqlo
   (:use :cl)
-  (:export :connect
+  (:export :connection
+           :make-param
+
+           :connect
            :disconnect
            :query
            :execute
            :commit
            :rollback
-           :make-param))
+           :ping))
 (in-package :myqlo)
 
 (defvar *mysql-time-struct*
@@ -209,6 +212,10 @@
 (defun rollback (conn)
   (let ((mysql (connection-mysql conn)))
     (maybe-mysql-error mysql (myqlo.cffi::mysql-rollback mysql))))
+
+(defun ping (conn)
+  (let ((mysql (connection-mysql conn)))
+    (maybe-mysql-error mysql (myqlo.cffi::mysql-ping mysql))))
 
 
 (defun mysql-error (mysql)

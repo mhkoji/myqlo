@@ -49,6 +49,9 @@
 (cffi:defcfun ("mysql_num_fields" mysql-num-fields) :unsigned-int
   (mysql-res :pointer))
 
+(cffi:defcfun ("mysql_ping" mysql-ping) :int
+  (mysql :pointer))
+
 (cffi:defcfun ("mysql_query" mysql-query) :int
   (mysql :pointer)
   (statement :string))
