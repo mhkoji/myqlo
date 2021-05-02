@@ -1,8 +1,10 @@
 (asdf:defsystem :myqlo-test
   :serial t
-  :pathname "t"
+  :pathname "t/src"
   :components
-  ((:file "test"))
+  ((:file "test")
+   (:file "query-and-execute")
+   (:file "decimal"))
 
   :perform (asdf:test-op (o s)
              (funcall (intern (symbol-name :run!) :fiveam)
