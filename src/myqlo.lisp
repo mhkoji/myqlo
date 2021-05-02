@@ -371,6 +371,10 @@
               ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
               ;; > Invoke mysql_stmt_fetch() with a zero-length buffer for the column in question and a pointer in which the real length can be stored.
               ;; > Then use the real length with mysql_stmt_fetch_column().
+              ;;
+              ;; MEMO:
+              ;; Should the followings be set every time parse-bind is called,
+              ;; or is it enough to set these once before calling mysql-stmt-bind-result?
               (setf (bind-buffer-length bind) 0
                     (bind-length bind) (cffi:foreign-alloc :ulong)))
              ((:date :time :datetime)
