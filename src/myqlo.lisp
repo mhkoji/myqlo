@@ -343,89 +343,90 @@
              (bind-release (cffi:mem-aptr binds *mysql-bind-struct* i)))
            (cffi:foreign-free binds))))))
 
-(defun statement-fetch-all (stmt field-types)
-  (let ((num-fields (length field-types)))
-    (with-binds (binds :count num-fields)
-      ;; Bind result
-      ;; Fetch fields to set field types to binds
-      (loop
-        for i from 0
-        for sql-type in field-types
-        do (let ((bind (cffi:mem-aptr binds *mysql-bind-struct* i)))
-             (ecase sql-type
-               ((:null)) ;; Doing nothing seems to work when null.
-               ((:tiny)
-                (setf (bind-buffer bind) (alloc-sql-tiny)))
-               ((:short)
-                (setf (bind-buffer bind) (alloc-sql-short)))
-               ((:long)
-                (setf (bind-buffer bind) (alloc-sql-long)))
-               ((:longlong)
-                (setf (bind-buffer bind) (alloc-sql-longlong)))
-               ((:date :time :datetime)
-                ;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
-                (setf (bind-buffer bind) (alloc-sql-time)))
-               ((:string :var-string :blob)
-                (setf (bind-buffer-length bind) 0
-                      (bind-length bind) (cffi:foreign-alloc :ulong))))
-             (setf (bind-buffer-type bind) sql-type)
-             (setf (bind-is-null bind) (cffi:foreign-alloc :bool))))
-      (maybe-stmt-error
-       stmt (myqlo.cffi::mysql-stmt-bind-result stmt binds))
-      ;; Fetch rows
-      (labels ((parse-bind (bind index)
-                 (let ((sql-type (bind-buffer-type bind)))
-                   (cond ((eql sql-type :null)
-                          nil)
-                         ((and (not (cffi:null-pointer-p
-                                     (bind-is-null bind)))
-                               (cffi:mem-ref (bind-is-null bind) :bool))
-                          nil)
-                         (t
-                          (ecase sql-type
-                            ((:tiny)
-                             (ref-sql-tiny (bind-buffer bind)))
-                            ((:short)
-                             (ref-sql-short (bind-buffer bind)))
-                            ((:long)
-                             (ref-sql-long (bind-buffer bind)))
-                            ((:longlong)
-                             (ref-sql-longlong (bind-buffer bind)))
-                            ((:date)
-                             (date->sql-string (bind-buffer bind)))
-                            ((:time)
-                             (time->sql-string (bind-buffer bind)))
-                            ((:datetime)
-                             (datetime->sql-string (bind-buffer bind)))
-                            ((:string :var-string :blob)
-                             (let ((len (bind-length-ref bind)))
-                               (setf (bind-buffer bind)
-                                     (cffi:foreign-alloc :char :count len)
-                                     (bind-buffer-length bind) len)
-                               (maybe-stmt-error
-                                stmt (myqlo.cffi::mysql-stmt-fetch-column
-                                      stmt bind index 0))
-                               (let ((octets (ref-sql-octets
-                                              (bind-buffer bind) len)))
-                                 (if (eql sql-type :blob)
-                                     octets
-                                     (octets-to-string octets)))))))))))
-        (let ((parsed-rows nil))
-            (loop
-              for ret = (myqlo.cffi::mysql-stmt-fetch stmt)
-              if (= ret 1)
-                do (stmt-error stmt)
-              else if (= ret 100)
-                do (return)
-              else ;; MYSQL_DATA_TRUNCATED was returned, maybe.
-                do (push (loop
-                           repeat num-fields
-                           for i from 0
-                           for bind = (cffi:mem-aptr
-                                       binds *mysql-bind-struct* i)
-                           collect (parse-bind bind i))
-                         parsed-rows))
-          (nreverse parsed-rows))))))
+;; setup-bind and parse-bind are factored out together because how the buffer meomory is processed is tightly coupled in the both procedures.
+(labels ((setup-bind (bind sql-type)
+           (ecase sql-type
+             ((:null)) ;; Doing nothing seems to work when null.
+             ((:tiny)
+              (setf (bind-buffer bind) (alloc-sql-tiny)))
+             ((:short)
+              (setf (bind-buffer bind) (alloc-sql-short)))
+             ((:long)
+              (setf (bind-buffer bind) (alloc-sql-long)))
+             ((:longlong)
+              (setf (bind-buffer bind) (alloc-sql-longlong)))
+             ((:date :time :datetime)
+              ;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
+              (setf (bind-buffer bind) (alloc-sql-time)))
+             ((:string :var-string :blob)
+              (setf (bind-buffer-length bind) 0
+                    (bind-length bind) (cffi:foreign-alloc :ulong))))
+           (setf (bind-buffer-type bind) sql-type)
+           (setf (bind-is-null bind) (cffi:foreign-alloc :bool)))
+
+         (parse-bind (stmt bind index)
+           (let ((sql-type (bind-buffer-type bind)))
+             (cond ((eql sql-type :null)
+                    nil)
+                   ((and (not (cffi:null-pointer-p (bind-is-null bind)))
+                         (cffi:mem-ref (bind-is-null bind) :bool))
+                    nil)
+                   (t
+                    (ecase sql-type
+                      ((:tiny)
+                       (ref-sql-tiny (bind-buffer bind)))
+                      ((:short)
+                       (ref-sql-short (bind-buffer bind)))
+                      ((:long)
+                       (ref-sql-long (bind-buffer bind)))
+                      ((:longlong)
+                       (ref-sql-longlong (bind-buffer bind)))
+                      ((:date)
+                       (date->sql-string (bind-buffer bind)))
+                      ((:time)
+                       (time->sql-string (bind-buffer bind)))
+                      ((:datetime)
+                       (datetime->sql-string (bind-buffer bind)))
+                      ((:string :var-string :blob)
+                       (let ((len (bind-length-ref bind)))
+                         (setf (bind-buffer bind)
+                               (cffi:foreign-alloc :char :count len)
+                               (bind-buffer-length bind) len)
+                         (maybe-stmt-error
+                          stmt (myqlo.cffi::mysql-stmt-fetch-column
+                                stmt bind index 0))
+                         (let ((octets (ref-sql-octets
+                                        (bind-buffer bind) len)))
+                           (if (eql sql-type :blob)
+                               octets
+                               (octets-to-string octets)))))))))))
+  (defun statement-fetch-all (stmt field-types)
+    (let ((num-fields (length field-types)))
+      (with-binds (binds :count num-fields)
+        ;; Bind result
+        ;; Fetch fields to set field types to binds
+        (loop for i from 0
+              for sql-type in field-types
+              for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
+              do (setup-bind bind sql-type))
+        (maybe-stmt-error
+         stmt (myqlo.cffi::mysql-stmt-bind-result stmt binds))
+        ;; Fetch rows
+        (labels ((parse-row ()
+                   (loop
+                     repeat num-fields
+                     for i from 0
+                     for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
+                     collect (parse-bind stmt bind i))))
+          (let ((parsed-rows nil))
+            (loop for ret = (myqlo.cffi::mysql-stmt-fetch stmt)
+                  if (= ret 1)
+                    do (stmt-error stmt)
+                  else if (= ret 100)
+                    do (return)
+                  else ;; MYSQL_DATA_TRUNCATED was returned, maybe.
+                    do (push (parse-row) parsed-rows))
+            (nreverse parsed-rows)))))))
 
 (defun call-with-prepared-statement (conn query stmt-fn)
   (let ((mysql-stmt (myqlo.cffi::mysql-stmt-init (connection-mysql conn))))
