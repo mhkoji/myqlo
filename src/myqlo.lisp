@@ -464,7 +464,10 @@
   `(call-with-prepared-statement
     ,conn ,query (lambda (,stmt) (progn ,@body))))
 
+(defgeneric convert-to-param (param))
+
 (defun execute (conn query params)
+  (setq params (mapcar #'convert-to-param params))
   (with-prepared-statement (stmt conn query)
     (with-binds (binds :count (length params))
       ;; Bind
@@ -490,3 +493,12 @@
                                     fields *mysql-field-struct* i)
                        collect (field-type field))))
             (statement-fetch-all stmt field-types)))))))
+
+(defmethod convert-to-param ((param param))
+  param)
+
+(defmethod convert-to-param ((x integer))
+  (make-param :value x :sql-type :long))
+
+(defmethod convert-to-param ((x string))
+  (make-param :value x :sql-type :string))
