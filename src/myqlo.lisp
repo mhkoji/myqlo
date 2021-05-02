@@ -351,71 +351,71 @@
              (bind-release (cffi:mem-aptr binds *mysql-bind-struct* i)))
            (cffi:foreign-free binds))))))
 
-;; setup-bind and parse-bind are factored out together because how the buffer meomory is processed is tightly coupled in the both procedures.
-(labels
-    ((setup-bind (bind sql-type)
-       (ecase sql-type
-         ((:null)) ;; Doing nothing seems to work when null.
-         ((:tiny)
-          (setf (bind-buffer bind) (alloc-sql-tiny)))
-         ((:short)
-          (setf (bind-buffer bind) (alloc-sql-short)))
-         ((:long)
-          (setf (bind-buffer bind) (alloc-sql-long)))
-         ((:longlong)
-          (setf (bind-buffer bind) (alloc-sql-longlong)))
-         ((:newdecimal :string :var-string
-           :blob)
-          ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
-          ;; > Invoke mysql_stmt_fetch() with a zero-length buffer for the column in question and a pointer in which the real length can be stored.
-          ;; > Then use the real length with mysql_stmt_fetch_column().
-          (setf (bind-buffer-length bind) 0
-                (bind-length bind) (cffi:foreign-alloc :ulong)))
-         ((:date :time :datetime)
-          ;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
-          (setf (bind-buffer bind) (alloc-sql-time))))
-       (setf (bind-buffer-type bind) sql-type)
-       (setf (bind-is-null bind) (cffi:foreign-alloc :bool)))
+(defun statement-fetch-all (stmt field-types)
+  (let ((num-fields (length field-types)))
+    ;; setup-bind and parse-bind are factored out together because how the buffer meomory is processed is tightly coupled in the both procedures.
+    (labels
+        ((setup-bind (bind sql-type)
+           (ecase sql-type
+             ((:null)) ;; Doing nothing seems to work when null.
+             ((:tiny)
+              (setf (bind-buffer bind) (alloc-sql-tiny)))
+             ((:short)
+              (setf (bind-buffer bind) (alloc-sql-short)))
+             ((:long)
+              (setf (bind-buffer bind) (alloc-sql-long)))
+             ((:longlong)
+              (setf (bind-buffer bind) (alloc-sql-longlong)))
+             ((:newdecimal :string :var-string
+               :blob)
+              ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
+              ;; > Invoke mysql_stmt_fetch() with a zero-length buffer for the column in question and a pointer in which the real length can be stored.
+              ;; > Then use the real length with mysql_stmt_fetch_column().
+              (setf (bind-buffer-length bind) 0
+                    (bind-length bind) (cffi:foreign-alloc :ulong)))
+             ((:date :time :datetime)
+              ;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
+              (setf (bind-buffer bind) (alloc-sql-time))))
+           (setf (bind-buffer-type bind) sql-type)
+           (setf (bind-is-null bind) (cffi:foreign-alloc :bool)))
 
-     (parse-bind (stmt bind index)
-       (let ((sql-type (bind-buffer-type bind)))
-         (cond ((eql sql-type :null)
-                nil)
-               ((and (not (cffi:null-pointer-p (bind-is-null bind)))
-                     (cffi:mem-ref (bind-is-null bind) :bool))
-                nil)
-               (t
-                (ecase sql-type
-                  ((:tiny)
-                   (ref-sql-tiny (bind-buffer bind)))
-                  ((:short)
-                   (ref-sql-short (bind-buffer bind)))
-                  ((:long)
-                   (ref-sql-long (bind-buffer bind)))
-                  ((:longlong)
-                   (ref-sql-longlong (bind-buffer bind)))
-                  ((:newdecimal :string :var-string)
-                   (octets-to-string
-                    (fetch-octets-using-real-length stmt bind index)))
-                  ((:blob)
-                   (fetch-octets-using-real-length stmt bind index))
-                  ((:date)
-                   (date->sql-string (bind-buffer bind)))
-                  ((:time)
-                   (time->sql-string (bind-buffer bind)))
-                  ((:datetime)
-                   (datetime->sql-string (bind-buffer bind))))))))
+         (parse-bind (bind index)
+           (let ((sql-type (bind-buffer-type bind)))
+             (cond ((eql sql-type :null)
+                    nil)
+                   ((and (not (cffi:null-pointer-p (bind-is-null bind)))
+                         (cffi:mem-ref (bind-is-null bind) :bool))
+                    nil)
+                   (t
+                    (ecase sql-type
+                      ((:tiny)
+                       (ref-sql-tiny (bind-buffer bind)))
+                      ((:short)
+                       (ref-sql-short (bind-buffer bind)))
+                      ((:long)
+                       (ref-sql-long (bind-buffer bind)))
+                      ((:longlong)
+                       (ref-sql-longlong (bind-buffer bind)))
+                      ((:newdecimal :string :var-string)
+                       (octets-to-string
+                        (fetch-octets-using-real-length bind index)))
+                      ((:blob)
+                       (fetch-octets-using-real-length bind index))
+                      ((:date)
+                       (date->sql-string (bind-buffer bind)))
+                      ((:time)
+                       (time->sql-string (bind-buffer bind)))
+                      ((:datetime)
+                       (datetime->sql-string (bind-buffer bind))))))))
 
-     (fetch-octets-using-real-length (stmt bind index)
-       (let ((len (bind-length-ref bind)))
-         (setf (bind-buffer bind) (cffi:foreign-alloc :char :count len)
-               (bind-buffer-length bind) len)
-         (maybe-stmt-error
-          stmt (myqlo.cffi::mysql-stmt-fetch-column stmt bind index 0))
-         (ref-sql-octets (bind-buffer bind) len))))
+         (fetch-octets-using-real-length (bind index)
+           (let ((len (bind-length-ref bind)))
+             (setf (bind-buffer bind) (cffi:foreign-alloc :char :count len)
+                   (bind-buffer-length bind) len)
+             (maybe-stmt-error
+              stmt (myqlo.cffi::mysql-stmt-fetch-column stmt bind index 0))
+             (ref-sql-octets (bind-buffer bind) len))))
 
-  (defun statement-fetch-all (stmt field-types)
-    (let ((num-fields (length field-types)))
       (with-binds (binds :count num-fields)
         ;; Bind result
         ;; Fetch fields to set field types to binds
@@ -431,7 +431,7 @@
                      repeat num-fields
                      for i from 0
                      for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
-                     collect (parse-bind stmt bind i))))
+                     collect (parse-bind bind i))))
           (let ((parsed-rows nil))
             (loop for ret = (myqlo.cffi::mysql-stmt-fetch stmt)
                   if (= ret 1)
