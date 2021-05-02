@@ -180,7 +180,7 @@
   (length-value :unsigned-long)
   (param-number :unsigned-int)
   (pack-length :unsigned-int)
-  (buffer-type :int)
+  (buffer-type enum-field-types)
   (error-value :char)
   (is-unsigned :char)
   (long-data-used :char)

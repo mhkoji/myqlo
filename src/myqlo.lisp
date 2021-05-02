@@ -115,7 +115,7 @@
                               :element-type '(unsigned-byte 8)))
 
 (defun (setf ref-sql-octets) (octets ptr len)
-  (cffi:lisp-array-to-foreign octets ptr  (list :array :uint8 len)))
+  (cffi:lisp-array-to-foreign octets ptr (list :array :uint8 len)))
 
 
 (defun string-to-octets (string)
@@ -278,13 +278,7 @@
     (query-fetch-all mysql)))
 
 
-(defun keyword-sql-type->int (sql-type)
-  (cffi:foreign-enum-value 'myqlo.cffi::enum-field-types sql-type))
-
-(defun int-sql-type->keyword (int)
-  (cffi:foreign-enum-keyword 'myqlo.cffi::enum-field-types int))
-
-;; ref: https://dev.mysql.com/doc/c-api/8.0/en/mysql-bind-param.html
+;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-bind-param.html
 (defun setup-bind-for-param (bind param)
   (with-accessors ((value param-value)
                    (sql-type param-sql-type)) param
@@ -307,7 +301,7 @@
            (setf (ref-sql-octets (bind-buffer bind) len) octets)))))
     ;; MEMO:
     ;; If is-null is allocated in bind-for-param, exeute returns nothing.
-    (setf (bind-buffer-type bind) (keyword-sql-type->int sql-type))))
+    (setf (bind-buffer-type bind) sql-type)))
 
 (defun bind-release (bind)
   (labels ((free-if-not-null (ptr)
@@ -374,14 +368,13 @@
                ((:string :var-string :blob)
                 (setf (bind-buffer-length bind) 0
                       (bind-length bind) (cffi:foreign-alloc :ulong))))
-             (setf (bind-buffer-type bind) (keyword-sql-type->int sql-type))
+             (setf (bind-buffer-type bind) sql-type)
              (setf (bind-is-null bind) (cffi:foreign-alloc :bool))))
       (maybe-stmt-error
        stmt (myqlo.cffi::mysql-stmt-bind-result stmt binds))
       ;; Fetch rows
       (labels ((parse-bind (bind index)
-                 (let ((sql-type (int-sql-type->keyword
-                                  (bind-buffer-type bind))))
+                 (let ((sql-type (bind-buffer-type bind)))
                    (cond ((eql sql-type :null)
                           nil)
                          ((and (not (cffi:null-pointer-p
