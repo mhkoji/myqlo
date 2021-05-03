@@ -31,9 +31,10 @@ sudo apt install libmysqlclient-dev
 ; No value
 ```
 
-###  Prepared Statements
+Prepared Statements
+---
 
-You can also execute prepared statements.
+You can also use prepared statements.
 
 ```common-lisp
 (myqlo:execute conn "SELECT * FROM users where user_id = ?" (list (myqlo:make-param :sql-type :long :value 1)))
@@ -44,6 +45,22 @@ You can also execute prepared statements.
 
 (myqlo:execute conn "SELECT * FROM users where created_on > ?" (list (myqlo:make-param :sql-type :string :value "2021-01-01 10:30:00")))
 ;=> ((2 "B" "2021-01-01 11:00:00"))
+```
+
+Response Object Mapping
+---
+
+
+```common-lisp
+(defstruct user id name created-on)
+
+(myqlo:execute conn
+ "SELECT * from users WHERE user_id = ?" '(1)
+ :map-fn (lambda (cols)
+           (make-user :id (first cols)
+                      :name (second cols)
+                      :created-on (third cols))))
+;=> (#S(USER :ID 1 :NAME "A" :CREATED-ON "2021-01-01 10:00:00"))
 ```
 
 ## Copyright
