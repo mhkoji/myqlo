@@ -37,13 +37,13 @@ Prepared Statements
 You can also use prepared statements.
 
 ```common-lisp
-(myqlo:execute conn "SELECT * FROM users where user_id = ?" (list (myqlo:make-param :sql-type :long :value 1)))
+(myqlo:execute conn "SELECT * FROM users where user_id = ?" (list 1))
 ;=> ((1 "A" "2021-01-01 10:00:00"))
 
-(myqlo:execute conn "SELECT * FROM users where name = ?" (list (myqlo:make-param :sql-type :string :value "A")))
+(myqlo:execute conn "SELECT * FROM users where name = ?" (list "A"))
 ;=> ((1 "A" "2021-01-01 10:00:00"))
 
-(myqlo:execute conn "SELECT * FROM users where created_on > ?" (list (myqlo:make-param :sql-type :string :value "2021-01-01 10:30:00")))
+(myqlo:execute conn "SELECT * FROM users where created_on > ?" (list "2021-01-01 10:30:00"))
 ;=> ((2 "B" "2021-01-01 11:00:00"))
 ```
 
