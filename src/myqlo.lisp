@@ -468,9 +468,9 @@
     ,conn ,query (lambda (,stmt) (progn ,@body))))
 
 
-;; The boundary between the application input family and the sql param family.
+;; This function creates the boundary between the application input family and the sql param family.
 ;; The application input family consists of the objects the application is easy to use.
-;; Those objects are likely to change and not always useful for the sql procedures, so the boundary is defined.
+;; Those objects are likely to change and not always useful for the sql procedures, which is the reason why the boundary is required.
 (defgeneric convert-to-param (param))
 
 (defun execute (conn query params &key (map-fn #'identity))
