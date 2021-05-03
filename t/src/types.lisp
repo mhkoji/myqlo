@@ -32,3 +32,16 @@
     (is (equal
          (myqlo:execute conn "SELECT * from t_null" nil)
          '((nil nil))))))
+
+(test double
+  (with-connection (conn)
+    (myqlo:query conn "DROP TABLE IF EXISTS t_double")
+    (myqlo:query conn "CREATE TABLE t_double (d double)")
+    (myqlo:query conn "INSERT INTO t_double VALUES (3.1415)")
+    (myqlo:execute conn "INSERT INTO t_double VALUES (?)" '("-3.1415"))
+    (is (equal
+         (myqlo:query conn "SELECT * from t_double")
+         '(("3.1415") ("-3.1415"))))
+    (is (equal
+         (myqlo:execute conn "SELECT * from t_double" nil)
+         '(("3.1415") ("-3.1415"))))))

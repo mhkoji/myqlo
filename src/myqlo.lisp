@@ -111,6 +111,12 @@
 (defmacro ref-sql-longlong (ptr)
   `(cffi:mem-ref ,ptr :int64))
 
+(defun alloc-sql-double ()
+  (cffi:foreign-alloc :double))
+
+(defun ref-sql-double (ptr)
+  (cffi:mem-ref ptr :double))
+
 (defun alloc-sql-time ()
   (cffi:foreign-alloc *mysql-time-struct*))
 
@@ -166,6 +172,11 @@
      (lambda (octets)
        (if octets
            (parse-integer (octets-to-string octets))
+           nil)))
+    ((:float :double)
+     (lambda (octets)
+       (if octets
+           (octets-to-string octets)
            nil)))
     ((:string :var-string
       :newdecimal
@@ -373,6 +384,8 @@
               (setf (bind-buffer bind) (alloc-sql-long)))
              ((:longlong)
               (setf (bind-buffer bind) (alloc-sql-longlong)))
+             ((:float :double)
+              (setf (bind-buffer bind) (alloc-sql-double)))
              ((:newdecimal :string :var-string
                :blob)
               ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
@@ -407,6 +420,8 @@
                        (ref-sql-long (bind-buffer bind)))
                       ((:longlong)
                        (ref-sql-longlong (bind-buffer bind)))
+                      ((:float :double)
+                       (format nil "~f" (ref-sql-double (bind-buffer bind))))
                       ((:newdecimal :string :var-string)
                        (octets-to-string
                         (fetch-octets-using-real-length bind index)))
