@@ -17,10 +17,7 @@
       VALUES (\"A123\", \"2021-01-01 10:00:00\")")
   (myqlo:execute conn
    "INSERT INTO users (name, created_on) VALUES (?, ?)"
-   (list (myqlo:make-param
-          :sql-type :string :value "BB456789")
-         (myqlo:make-param
-          :sql-type :string :value "2021-01-01 12:00:00"))))
+   (list "BB456789" "2021-01-01 12:00:00")))
 
 (test query-and-execute
   (with-connection (conn)
@@ -31,20 +28,34 @@
          '((1 "A123" "2021-01-01 10:00:00")
            (2 "BB456789" "2021-01-01 12:00:00"))))
     (is (equal
-         (myqlo:execute conn
-          "SELECT * from users WHERE user_id = ?"
-          (list (myqlo:make-param
-                 :sql-type :long :value 2)))
+         (myqlo:execute conn "SELECT * from users WHERE user_id = ?" '(2))
          '((2 "BB456789" "2021-01-01 12:00:00"))))
     (is (equal
-         (myqlo:execute conn
-          "SELECT * from users WHERE name = ?"
-          (list (myqlo:make-param
-                 :sql-type :string :value "A123")))
+         (myqlo:execute conn "SELECT * from users WHERE name = ?" '("A123"))
         '((1 "A123" "2021-01-01 10:00:00"))))
     (is (equal
          (myqlo:execute conn
-          "SELECT * from users WHERE created_on < ?"
-          (list (myqlo:make-param
-                 :sql-type :string :value "2021-01-1 11:00:00")))
+          "SELECT * from users WHERE created_on < ?" '("2021-01-1 11:00:00"))
          '((1 "A123" "2021-01-01 10:00:00"))))))
+
+(defstruct user id name created-on)
+
+(test map-fn
+  (with-connection (conn)
+    (setup-table conn)
+    (labels ((to-user (cols)
+               (make-user :id (first cols)
+                          :name (second cols)
+                          :created-on (third cols))))
+      (let ((user (car (myqlo:query conn
+                        "SELECT * from users WHERE user_id = 1"
+                        :map-fn #'to-user))))
+        (is (= (user-id user) 1))
+        (is (string= (user-name user) "A123"))
+        (is (string= (user-created-on user) "2021-01-01 10:00:00")))
+      (let ((user (car (myqlo:execute conn
+                        "SELECT * from users WHERE user_id = ?" '(1)
+                        :map-fn #'to-user))))
+        (is (= (user-id user) 1))
+        (is (string= (user-name user) "A123"))
+        (is (string= (user-created-on user) "2021-01-01 10:00:00"))))))

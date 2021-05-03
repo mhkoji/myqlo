@@ -2,6 +2,7 @@
   (:use :cl)
   (:export :connection
            :make-param
+           :convert-to-param
 
            :connect
            :disconnect
@@ -258,7 +259,9 @@
 (defmacro with-store-result ((res mysql) &body body)
   `(call-with-store-result ,mysql (lambda (,res) (progn ,@body))))
 
-(defun query-fetch-all (mysql)
+;; on-each-row-fn is a callback function invoked when a new row is fetched.
+;; on-each-row-fn is, for example, map an input to another object and collect it to somewhere, which is not a concern of query-fetch-all.
+(defun query-fetch-all (mysql on-each-row-fn)
   ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-store-result.html
   ;; > it does not do any harm or cause any notable performance degradation if you call mysql_store_result() in all cases.
   (with-store-result (res mysql)
@@ -276,24 +279,26 @@
                    for type in field-types
                    collect (let ((octets (ref-sql-octets nth-ptr len)))
                              (parse-column-octets type octets)))))
-        (let ((parsed-rows nil))
-          (loop for row = (myqlo.cffi::mysql-fetch-row res)
-                if (not (cffi:null-pointer-p row))
-                  do (let ((lens (myqlo.cffi::mysql-fetch-lengths res)))
-                       (when (cffi:null-pointer-p lens)
-                         (mysql-error mysql))
-                       (push (parse-row row lens) parsed-rows))
-                else if (/= (myqlo.cffi:mysql-errno mysql) 0)
-                  do (mysql-error mysql)
-                else
-                  do (return))
-          (nreverse parsed-rows))))))
+        (loop
+          for row = (myqlo.cffi::mysql-fetch-row res)
+          if (not (cffi:null-pointer-p row))
+            do (let ((lens (myqlo.cffi::mysql-fetch-lengths res)))
+                 (when (cffi:null-pointer-p lens)
+                   (mysql-error mysql))
+                 (funcall on-each-row-fn (parse-row row lens)))
+          else if (/= (myqlo.cffi:mysql-errno mysql) 0)
+            do (mysql-error mysql)
+          else
+            do (return))))))
 
-(defun query (conn string)
+(defun query (conn string &key (map-fn #'identity))
   (let ((mysql (connection-mysql conn)))
     (maybe-mysql-error mysql (myqlo.cffi:mysql-query mysql string))
-    (query-fetch-all mysql)))
-
+    (let ((rows nil))
+      (query-fetch-all mysql
+        (lambda (row)
+          (push (funcall map-fn row) rows)))
+      (nreverse rows))))
 
 ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-bind-param.html
 (defun setup-bind-for-param (bind param)
@@ -353,7 +358,7 @@
              (bind-release (cffi:mem-aptr binds *mysql-bind-struct* i)))
            (cffi:foreign-free binds))))))
 
-(defun statement-fetch-all (stmt field-types)
+(defun statement-fetch-all (stmt field-types on-each-row-fn)
   (let ((num-fields (length field-types)))
     ;; setup-bind and parse-bind are factored out together because how the buffer meomory is processed is tightly coupled in the both procedures.
     (labels
@@ -439,21 +444,19 @@
         (maybe-stmt-error
          stmt (myqlo.cffi::mysql-stmt-bind-result stmt binds))
         ;; Fetch rows
-        (labels ((parse-row ()
-                   (loop
-                     repeat num-fields
-                     for i from 0
-                     for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
-                     collect (parse-bind bind i))))
-          (let ((parsed-rows nil))
-            (loop for ret = (myqlo.cffi::mysql-stmt-fetch stmt)
-                  if (= ret 1)
-                    do (stmt-error stmt)
-                  else if (= ret 100)
-                    do (return)
-                  else ;; MYSQL_DATA_TRUNCATED was returned, maybe.
-                    do (push (parse-row) parsed-rows))
-            (nreverse parsed-rows)))))))
+        (loop for ret = (myqlo.cffi::mysql-stmt-fetch stmt)
+              if (= ret 1)
+                do (stmt-error stmt)
+              else if (= ret 100)
+                do (return)
+              else ;; MYSQL_DATA_TRUNCATED was returned, maybe.
+                do (funcall on-each-row-fn
+                            (loop
+                              repeat num-fields
+                              for i from 0
+                              for bind = (cffi:mem-aptr
+                                          binds *mysql-bind-struct* i)
+                              collect (parse-bind bind i))))))))
 
 (defun call-with-prepared-statement (conn query stmt-fn)
   (let ((mysql-stmt (myqlo.cffi::mysql-stmt-init (connection-mysql conn))))
@@ -473,12 +476,18 @@
   `(call-with-prepared-statement
     ,conn ,query (lambda (,stmt) (progn ,@body))))
 
-(defun execute (conn query params)
+
+;; This function creates the boundary between the application input family and the sql param family.
+;; The application input family consists of the objects the application is easy to use.
+;; Those objects are likely to change and not always useful for the sql procedures, which is the reason why the boundary is required.
+(defgeneric convert-to-param (param))
+
+(defun execute (conn query params &key (map-fn #'identity))
   (with-prepared-statement (stmt conn query)
     (with-binds (binds :count (length params))
       ;; Bind
       (loop for i from 0
-            for param in params
+            for param in (mapcar #'convert-to-param params)
             for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
             do (setup-bind-for-param bind param))
       (maybe-stmt-error stmt (myqlo.cffi::mysql-stmt-bind-param stmt binds))
@@ -493,9 +502,22 @@
         (let ((fields (myqlo.cffi::mysql-fetch-fields res))
               (num-fields (myqlo.cffi::mysql-num-fields res)))
           (let ((field-types
-                 (loop repeat num-fields
-                       for i from 0
-                       for field = (cffi:mem-aptr
-                                    fields *mysql-field-struct* i)
-                       collect (field-type field))))
-            (statement-fetch-all stmt field-types)))))))
+                  (loop repeat num-fields
+                        for i from 0
+                        for field = (cffi:mem-aptr
+                                     fields *mysql-field-struct* i)
+                        collect (field-type field))))
+            (let ((rows nil))
+              (statement-fetch-all stmt field-types
+                (lambda (row)
+                  (push (funcall map-fn row) rows)))
+              (nreverse rows))))))))
+
+(defmethod convert-to-param ((param param))
+  param)
+
+(defmethod convert-to-param ((x integer))
+  (make-param :value x :sql-type :long))
+
+(defmethod convert-to-param ((x string))
+  (make-param :value x :sql-type :string))
