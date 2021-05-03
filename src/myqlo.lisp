@@ -2,6 +2,7 @@
   (:use :cl)
   (:export :connection
            :make-param
+           :convert-to-param
 
            :connect
            :disconnect
@@ -466,8 +467,11 @@
   `(call-with-prepared-statement
     ,conn ,query (lambda (,stmt) (progn ,@body))))
 
-(defgeneric convert-to-param (param))
 
+;; The boundary between the application input family and the sql param family.
+;; The application input family consists of the objects the application is easy to use.
+;; Those objects are likely to change and not always useful for the sql procedures, so the boundary is defined.
+(defgeneric convert-to-param (param))
 
 (defun execute (conn query params &key (map-fn #'identity))
   (with-prepared-statement (stmt conn query)
@@ -477,8 +481,7 @@
             for param in (mapcar #'convert-to-param params)
             for bind = (cffi:mem-aptr binds *mysql-bind-struct* i)
             do (setup-bind-for-param bind param))
-      (maybe-stmt-error
-       stmt (myqlo.cffi::mysql-stmt-bind-param stmt binds))
+      (maybe-stmt-error stmt (myqlo.cffi::mysql-stmt-bind-param stmt binds))
       ;; Execute
       ;; binds are released after execution because execute seems to use the values in the bindings:
       ;; https://dev.mysql.com/doc/c-api/8.0/en/c-api-prepared-statement-data-structures.html

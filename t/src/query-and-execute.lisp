@@ -48,8 +48,8 @@
                           :name (second cols)
                           :created-on (third cols))))
       (let ((user (car (myqlo:query conn
-                         "SELECT * from users WHERE user_id = 1"
-                         :map-fn #'to-user))))
+                        "SELECT * from users WHERE user_id = 1"
+                        :map-fn #'to-user))))
         (is (= (user-id user) 1))
         (is (string= (user-name user) "A123"))
         (is (string= (user-created-on user) "2021-01-01 10:00:00")))
