@@ -5,43 +5,55 @@
 
 (test decimal
   (with-connection (conn)
-    (myqlo:query conn "DROP TABLE IF EXISTS t_decimal")
-    (myqlo:query conn "CREATE TABLE t_decimal (d decimal)")
-    (myqlo:execute conn "INSERT INTO t_decimal (d) VALUES (?),(?)"
+    (myqlo:query conn "DROP TABLE IF EXISTS tbl")
+    (myqlo:query conn "CREATE TABLE tbl (d decimal)")
+    (myqlo:execute conn "INSERT INTO tbl (d) VALUES (?),(?)"
      (list (myqlo:make-param :sql-type :long :value 100)
            (myqlo:make-param :sql-type :long :value 200)))
 
     (is (equal
          (myqlo:query conn
-          "SELECT * from t_decimal")
+          "SELECT * from tbl")
          '(("100") ("200"))))
     (is (equal
          (myqlo:execute conn
-          "SELECT * from t_decimal where d = ?"
+          "SELECT * from tbl where d = ?"
           (list (myqlo:make-param :sql-type :long :value 100)))
          '(("100"))))))
 
 (test null
   (with-connection (conn)
-    (myqlo:query conn "DROP TABLE IF EXISTS t_null")
-    (myqlo:query conn "CREATE TABLE t_null (d decimal, t text)")
-    (myqlo:query conn "INSERT INTO t_null (d, t) VALUES (NULL, NULL)")
+    (myqlo:query conn "DROP TABLE IF EXISTS tbl")
+    (myqlo:query conn "CREATE TABLE tbl (d decimal, t text)")
+    (myqlo:query conn "INSERT INTO tbl (d, t) VALUES (NULL, NULL)")
     (is (equal
-         (myqlo:query conn "SELECT * from t_null")
+         (myqlo:query conn "SELECT * from tbl")
          '((nil nil))))
     (is (equal
-         (myqlo:execute conn "SELECT * from t_null" nil)
+         (myqlo:execute conn "SELECT * from tbl" nil)
          '((nil nil))))))
 
 (test double
   (with-connection (conn)
-    (myqlo:query conn "DROP TABLE IF EXISTS t_double")
-    (myqlo:query conn "CREATE TABLE t_double (d double)")
-    (myqlo:query conn "INSERT INTO t_double VALUES (3.1415)")
-    (myqlo:execute conn "INSERT INTO t_double VALUES (?)" '("-3.1415"))
+    (myqlo:query conn "DROP TABLE IF EXISTS tbl")
+    (myqlo:query conn "CREATE TABLE tbl (d double)")
+    (myqlo:query conn "INSERT INTO tbl VALUES (3.1415)")
+    (myqlo:execute conn "INSERT INTO tbl VALUES (?)" '("-3.1415"))
     (is (equal
-         (myqlo:query conn "SELECT * from t_double")
+         (myqlo:query conn "SELECT * from tbl")
          '(("3.1415") ("-3.1415"))))
     (is (equal
-         (myqlo:execute conn "SELECT * from t_double" nil)
+         (myqlo:execute conn "SELECT * from tbl" nil)
          '(("3.1415") ("-3.1415"))))))
+
+(test timestamp
+  (with-connection (conn)
+    (myqlo:query conn "DROP TABLE IF EXISTS tbl")
+    (myqlo:query conn "CREATE TABLE tbl (ts timestamp)")
+    (myqlo:query conn "INSERT INTO tbl VALUES (\"2021-01-01 12:34:45\")")
+    (is (equal
+         (myqlo:query conn "SELECT * from tbl")
+         '(("2021-01-01 12:34:45"))))
+    (is (equal
+         (myqlo:execute conn "SELECT * from tbl" nil)
+         '(("2021-01-01 12:34:45"))))))

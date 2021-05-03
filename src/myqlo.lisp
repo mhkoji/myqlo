@@ -180,7 +180,7 @@
            nil)))
     ((:string :var-string
       :newdecimal
-      :datetime :time :date)
+      :datetime :time :date :timestamp)
      (lambda (octets)
        (if octets
            (octets-to-string octets)
@@ -397,7 +397,7 @@
               ;; or is it enough to set these once before calling mysql-stmt-bind-result?
               (setf (bind-buffer-length bind) 0
                     (bind-length bind) (cffi:foreign-alloc :ulong)))
-             ((:date :time :datetime)
+             ((:date :time :datetime :timestamp)
               ;; https://dev.mysql.com/doc/refman/5.6/ja/c-api-prepared-statement-date-handling.html
               (setf (bind-buffer bind) (alloc-sql-time))))
            (setf (bind-buffer-type bind) sql-type)
@@ -431,7 +431,7 @@
                        (date->sql-string (bind-buffer bind)))
                       ((:time)
                        (time->sql-string (bind-buffer bind)))
-                      ((:datetime)
+                      ((:datetime :timestamp)
                        (datetime->sql-string (bind-buffer bind))))))))
 
          (fetch-octets-using-real-length (bind index)
