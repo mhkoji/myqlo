@@ -120,6 +120,14 @@
 (defun (setf ref-sql-octets) (octets ptr len)
   (cffi:lisp-array-to-foreign octets ptr (list :array :uint8 len)))
 
+(defun alloc-binds (count)
+  (let ((ptr (cffi:foreign-alloc *mysql-bind-struct* :count count)))
+    ;; Binds are filled with zeros because:
+    ;; - garbage data make MySQL APIs work incorrectly
+    ;; - bind-release may release unallocated memories
+    (myqlo.cffi::memset
+     ptr 0 (* (cffi:foreign-type-size *mysql-bind-struct*) count))
+    ptr))
 
 (defun string-to-octets (string)
   (babel:string-to-octets string :encoding :utf-8))
@@ -339,15 +347,8 @@
 (defmacro with-binds ((var &key (count 1)) &body body)
   (let ((g (gensym)))
     `(let ((,g ,count))
-       (let ((,var (cffi:foreign-alloc *mysql-bind-struct* :count ,g)))
-         (unwind-protect
-              (progn
-                ;; Binds are filled with zeros
-                ;; because garbage data make MySQL APIs work incorrectly.
-                (myqlo.cffi::memset
-                 ,var 0 (* (cffi:foreign-type-size *mysql-bind-struct*)
-                           ,g))
-                ,@body)
+       (let ((,var (alloc-binds ,g)))
+         (unwind-protect (progn ,@body)
            (dotimes (i ,g)
              (bind-release (cffi:mem-aptr binds *mysql-bind-struct* i)))
            (cffi:foreign-free binds))))))
