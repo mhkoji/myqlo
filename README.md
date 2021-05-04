@@ -31,8 +31,8 @@ sudo apt install libmysqlclient-dev
 ; No value
 ```
 
-Prepared Statements
----
+### Prepared Statements
+
 
 You can also use prepared statements.
 
@@ -47,8 +47,9 @@ You can also use prepared statements.
 ;=> ((2 "B" "2021-01-01 11:00:00"))
 ```
 
-Response Object Mapping
----
+### Response Object Mapping
+
+Specify `:map-fn` to convert each row object.
 
 
 ```common-lisp
@@ -61,6 +62,40 @@ Response Object Mapping
                       :name (second cols)
                       :created-on (third cols))))
 ;=> (#S(USER :ID 1 :NAME "A" :CREATED-ON "2021-01-01 10:00:00"))
+```
+
+
+### Parameter Conversion
+
+Defining `convert-to-param` enables you to use your own object as a sql parameter.
+
+Below is an example that `uuid` is used as an identifer of a user object.
+
+```common-lisp
+(defmethod myqlo:convert-to-param ((id uuid:uuid))
+  (myqlo:make-param :sql-type :string :value (format nil "~A" id)))
+
+(defstruct user id name)
+
+(defun create-user (name)
+  (make-user :id (uuid:make-v4-uuid) :name name))
+
+(defvar *u* (create-user "john"))
+
+*u*
+;=> #S(USER :ID 4D1986C1-0B9A-4B73-BA99-26C7B6C37AF7 :NAME "john")
+
+(myqlo:query conn "CREATE TABLE users (user_id binary(16) NOT NULL, name varchar(64) NOT NULL)")
+
+(myqlo:execute conn "INSERT INTO users (user_id, name) VALUES (UUID_TO_BIN(?),?)"
+ (list (user-id *u*) ;; type =  uuid
+       (user-name *u*)))
+
+(myqlo:execute conn "SELECT BIN_TO_UUID(user_id), name from users where user_id = UUID_TO_BIN(?)" (list (user-id *u*))
+ :map-fn (lambda (cols)
+           (make-user :id (uuid:make-uuid-from-string (first cols))
+                      :name (second cols))))
+;=> (#S(USER :ID 4D1986C1-0B9A-4B73-BA99-26C7B6C37AF7 :NAME "john"))
 ```
 
 ## Copyright
