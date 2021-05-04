@@ -39,12 +39,12 @@
     (myqlo:query conn "CREATE TABLE tbl (d double)")
     (myqlo:query conn "INSERT INTO tbl VALUES (3.1415)")
     (myqlo:execute conn "INSERT INTO tbl VALUES (?)" '("-3.1415"))
-    (is (equal
-         (myqlo:query conn "SELECT * from tbl")
-         '(("3.1415") ("-3.1415"))))
-    (is (equal
-         (myqlo:execute conn "SELECT * from tbl" nil)
-         '(("3.1415") ("-3.1415"))))))
+    (let ((rows (myqlo:query conn "SELECT * from tbl")))
+      (is (= (first (nth 0 rows)) 3.1415d0))
+      (is (= (first (nth 1 rows)) -3.1415d0)))
+    (let ((rows (myqlo:execute conn "SELECT * from tbl" nil)))
+      (is (= (first (nth 0 rows)) 3.1415d0))
+      (is (= (first (nth 1 rows)) -3.1415d0)))))
 
 (test timestamp
   (with-connection (conn)

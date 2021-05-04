@@ -142,6 +142,8 @@
 (defun octets-to-string (octets)
   (babel:octets-to-string octets :encoding :utf-8))
 
+(defun string-to-double (string)
+  (parse-float:parse-float string :type 'double-float))
 
 (defun time->sql-string (time)
   (format nil "~2,'0d:~2,'0d:~2,'0d"
@@ -176,7 +178,7 @@
     ((:float :double)
      (lambda (octets)
        (if octets
-           (octets-to-string octets)
+           (string-to-double (octets-to-string octets))
            nil)))
     ((:string :var-string
       :newdecimal
@@ -421,7 +423,7 @@
                       ((:longlong)
                        (ref-sql-longlong (bind-buffer bind)))
                       ((:float :double)
-                       (format nil "~f" (ref-sql-double (bind-buffer bind))))
+                       (ref-sql-double (bind-buffer bind)))
                       ((:newdecimal :string :var-string)
                        (octets-to-string
                         (fetch-octets-using-real-length bind index)))

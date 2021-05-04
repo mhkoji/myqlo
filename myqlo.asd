@@ -7,4 +7,6 @@
    (:file "myqlo"))
 
   :depends-on
-  (:cffi))
+  (:babel
+   :cffi
+   :parse-float))
