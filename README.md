@@ -69,7 +69,7 @@ Specify `:map-fn` to convert each row object.
 
 Defining `convert-to-param` enables you to use your own object as a sql parameter.
 
-Below is an example that `uuid` is used as an identifer of a user object.
+Below is an example that `uuid` is used as the identifer of a user object.
 
 ```common-lisp
 (defmethod myqlo:convert-to-param ((id uuid:uuid))

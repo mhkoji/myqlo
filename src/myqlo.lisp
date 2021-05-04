@@ -114,8 +114,8 @@
 (defun alloc-sql-double ()
   (cffi:foreign-alloc :double))
 
-(defun ref-sql-double (ptr)
-  (cffi:mem-ref ptr :double))
+(defmacro ref-sql-double (ptr)
+  `(cffi:mem-ref ,ptr :double))
 
 (defun alloc-sql-time ()
   (cffi:foreign-alloc *mysql-time-struct*))
@@ -273,7 +273,7 @@
   `(call-with-store-result ,mysql (lambda (,res) (progn ,@body))))
 
 ;; on-each-row-fn is a callback function invoked when a new row is fetched.
-;; on-each-row-fn is, for example, map an input to another object and collect it to somewhere, which is not a concern of query-fetch-all.
+;; on-each-row-fn, for example, maps an input to another object and collects it to somewhere, which is not a concern of query-fetch-all.
 (defun query-fetch-all (mysql on-each-row-fn)
   ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-store-result.html
   ;; > it does not do any harm or cause any notable performance degradation if you call mysql_store_result() in all cases.
@@ -324,6 +324,10 @@
        (assert (integerp value))
        (setf (bind-buffer bind) (alloc-sql-long))
        (setf (ref-sql-long (bind-buffer bind)) value))
+      ((:double)
+       (assert (typep value 'double-float))
+       (setf (bind-buffer bind) (alloc-sql-double))
+       (setf (ref-sql-double (bind-buffer bind)) value))
       ((:string)
        (assert (stringp value))
        ;; https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-fetch.html
@@ -538,3 +542,6 @@
 
 (defmethod convert-to-param ((x string))
   (make-param :value x :sql-type :string))
+
+(defmethod convert-to-param ((x double-float))
+  (make-param :value x :sql-type :double))
