@@ -1,0 +1,21 @@
+version: '3.7'
+
+services:
+  mysql:
+    image: mysql:8.0.23
+    environment:
+      - MYSQL_DATABASE=admin
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+    expose:
+      - 3306
+
+  myqlo:
+    build:
+      context: ../../
+      dockerfile: ./t/docker/Dockerfile
+    depends_on:
+      - mysql
+
+networks:
+  default:
+    driver: bridge
