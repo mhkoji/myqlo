@@ -172,21 +172,15 @@
        nil))
     ((:tiny :short :long :longlong)
      (lambda (octets)
-       (if octets
-           (parse-integer (octets-to-string octets))
-           nil)))
+       (and octets (parse-integer (octets-to-string octets)))))
     ((:float :double)
      (lambda (octets)
-       (if octets
-           (string-to-double (octets-to-string octets))
-           nil)))
+       (and octets (string-to-double (octets-to-string octets)))))
     ((:string :var-string
       :newdecimal
       :datetime :time :date :timestamp)
      (lambda (octets)
-       (if octets
-           (octets-to-string octets)
-           nil)))
+       (and octets (octets-to-string octets))))
     ((:blob)
      #'identity)))
 
